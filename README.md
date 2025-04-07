@@ -20,6 +20,7 @@
 - db — PostgreSQL 15, хранит данные в db_data.
 - nginx — проксирует запросы на app, доступен на localhost:8080, использует конфиг ./nginx/default.conf.
 Все сервисы подключены к одной сети symfony_network, данные БД сохраняются в volume.
+Локально запуск происходит через команду: docker-compose -f docker-compose-local.yaml up --build
 
 3.  Разработать Helm Chart с Deployment, Service и возможностью настройки
 Helm-чарт представлен в виде двух папок. Первая — symfony-chart — это облегчённый вариант, соответствующий техническому заданию. Структура чарта:
