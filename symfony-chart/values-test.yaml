@@ -1,0 +1,30 @@
+nameOverride: "symfony-app"
+fullnameOverride: "symfony-app"
+namespace: symfony-namespace
+
+
+replicaCount: 1
+
+image:
+  repository: your-registry/symfony-app
+  tag: latest
+  pullPolicy: IfNotPresent
+
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 50%
+    maxSurge: 50%
+
+service:
+  type: ClusterIP
+  port: 9000
+
+containerPort: 9000
+
+resources: {}
+
+env: []
+# env:
+#   - name: APP_ENV
+#     value: test

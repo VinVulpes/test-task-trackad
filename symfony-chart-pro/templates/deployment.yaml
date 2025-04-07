@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "symfony.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "symfony.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      {{- include "symfony.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "symfony.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "symfony.serviceAccountName" . }}
+      containers:
+        - name: symfony
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          envFrom:
+            - secretRef:
+                name: {{ include "symfony.fullname" . }}-secrets
+          ports:
+            - containerPort: 9000
+              name: php
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

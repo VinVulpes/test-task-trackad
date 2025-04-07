@@ -1,0 +1,121 @@
+nameOverride: "symfony-app"
+fullnameOverride: "symfony-app"
+namespace: symfony-namespace
+replicaCount: 1
+image:
+  repository: some-gitlab.com/symfony-app
+  tag: release-test-1
+  pullPolicy: Always
+    
+imagePullSecrets:
+  - name: docker-registry-secret
+
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 50%
+    maxSurge: 50%
+
+secrets:
+  # SYSTEM
+  TZ: Europe/Moscow
+  APP_ENV: test
+
+serviceAccount:
+  enabled: false
+  annotations: {}
+  name: ""
+
+#podAnnotations: {}
+podAnnotations:
+  seccomp.security.alpha.kubernetes.io/pod: "runtime/default"
+podSecurityContext: {}
+
+securityContext:
+  readOnlyRootFilesystem: true
+  
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt"
+    kubernetes.io/tls-acme: 'true'
+    nginx.ingress.kubernetes.io/server-snippet: |
+      location = /robots.txt {
+        add_header Content-Type text/plain;
+        return 200 'User-agent: *\nDisallow: /\n';
+      }
+    nginx.ingress.kubernetes.io/wallarm-application: '129'
+    nginx.ingress.kubernetes.io/wallarm-mode: monitoring
+    nginx.ingress.kubernetes.io/wallarm-block-page: "&/usr/share/nginx/html/blocked/403.html response_code=445 type=attack,acl_ip,acl_source"
+  tls:
+    - secretName: letsencrypt
+      hosts:
+        - symfony-app-stg.example.com
+  hosts:
+    - host: symfony-app-stg.example.com
+      paths:
+      - path: "/"
+        pathType: "Prefix"
+        service:
+          name: symfony-app
+          port:
+            name: http
+
+service:
+  type: ClusterIP
+  http:
+    port: 9000
+    name: http
+
+resources: 
+  requests:
+    cpu: "0.1"
+    memory: "15Mi"
+  limits:
+    memory: "15Mi"
+
+readinessProbe_enabled: false
+readinessProbe:
+  httpGet:
+    path: /api/catalog/test
+    port: 9000
+  initialDelaySeconds: 20
+  periodSeconds: 10
+  timeoutSeconds: 1
+  failureThreshold: 3
+livenessProbe_enabled: false
+livenessProbe:
+  httpGet:
+    path: /v1/region
+    port: http
+    scheme: HTTP
+    httpHeaders:
+      - name: Host
+        value: "api.test.ru"
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 1
+  failureThreshold: 3
+startupProbe_enabled: false
+startupProbe:
+  httpGet:
+    path: /v1/region
+    port: http
+    scheme: HTTP
+    httpHeaders:
+      - name: Host
+        value: "api.test.ru"
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 1
+  failureThreshold: 3
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 80
+
+nodeSelector: {}
+tolerations: []

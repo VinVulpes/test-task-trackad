@@ -1,0 +1,64 @@
+stages:
+  - build
+  - deploy
+
+variables:
+  DOCKERFILE_DIR: "."
+  DOCKERFILE_NAME: "Dockerfile"
+  DOCKER_COMPOSE_NAME: docker-compose.yml
+  BUILD_DIR: "."
+  CACHE_TTL: "24h"
+  ENABLE_KANIKO_CACHE: "true"
+  HELM_CHART_DIR: "symfony-chart"
+
+.kaniko_build:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:v1.23.1-debug
+    entrypoint: ["sh", "-c"]
+  script:
+    - export image_tag="${CI_REGISTRY_IMAGE}:${CI_COMMIT_REF_SLUG}"
+    - export image_cache="${CI_REGISTRY_IMAGE}"
+    - echo "Building image: $image_tag"
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf "%s:%s" "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+    - >
+      /kaniko/executor
+      --context "dir://${BUILD_DIR}"
+      --dockerfile "${DOCKERFILE_DIR}/${DOCKERFILE_NAME}"
+      --destination "${image_tag}"
+      --log-timestamp=true
+      --cache=${ENABLE_KANIKO_CACHE}
+      --cache-ttl=${CACHE_TTL}
+      --cache-repo=${image_cache}
+
+build:
+  extends: .kaniko_build
+  variables:
+    DOCKERFILE_DIR: "."
+    DOCKERFILE_NAME: "Dockerfile"
+    BUILD_DIR: "."
+    ENABLE_KANIKO_CACHE: "true"
+    CACHE_TTL: "24h"
+
+deploy_docker_compose:
+  stage: deploy
+  variables:
+    DOCKER_COMPOSE_NAME: docker-compose-local.yaml
+  script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+    - docker-compose -f $DOCKER_COMPOSE_NAME up -d
+
+
+deploy_helm_chart:
+  stage: deploy
+  image: alpine/helm:3.14.3
+  script:
+    - mkdir -p ~/.kube
+    - echo "$KUBECONFIG_CONTENT" > ~/.kube/config
+    - helm dependency update "./${HELM_CHART_DIR}"
+    - helm upgrade --install symfony "./${HELM_CHART_DIR}" \
+        --namespace symfony-namespace \
+        --create-namespace \
+        --values "./${HELM_CHART_DIR}/values_test.yaml" \
+        --set image.tag=${CI_COMMIT_REF_SLUG}
